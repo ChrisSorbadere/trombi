@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'trombi-v1.0.0';
+const CACHE_VERSION = 'trombi-v1.1.0';
 const STATIC = ['./', './index.html', './manifest.json', './favicon.ico', './icons/icon-192.png', './icons/icon-512.png', './icons/favicon-32.png', './icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(STATIC)).then(() => self.skipWaiting()));
