@@ -1,0 +1,14 @@
+{
+  "name": "trombi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trombi — apprendre les noms de ses élèves",
+  "scripts": {
+    "build": "node -e \"const fs=require('fs');fs.rmSync('www',{recursive:true,force:true});fs.mkdirSync('www');for(const f of ['index.html','manifest.json','sw.js','favicon.ico'])fs.copyFileSync(f,'www/'+f);fs.cpSync('icons','www/icons',{recursive:true})\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0"
+  }
+}

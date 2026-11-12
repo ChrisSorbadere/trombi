@@ -1,0 +1,69 @@
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Copie du site et synchro Capacitor
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Version
+        id: v
+        run: |
+          VERSION=$(grep -oP "const VERSION='\K[^']+" index.html)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          sed -i "s/versionCode [0-9]\+/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+
+      - name: Compilation
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease 2>&1 | tee build.log || {
+            grep -E "error|FAILURE|What went wrong" -A3 build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1; }
+
+      - name: Renommage
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release.apk "out/Trombi-${{ steps.v.outputs.version }}-b${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Trombi-apk
+          path: out/*.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}-b${{ github.run_number }}
+          name: Trombi ${{ steps.v.outputs.version }} (build ${{ github.run_number }})
+          make_latest: true
+          files: out/*.apk
+          body: |
+            **Installation sur le téléphone** : touche le fichier `.apk` ci-dessous, ouvre-le, puis autorise l'installation si Android le demande.
+            Les versions suivantes s'installent par-dessus, sans perdre les élèves importés ni la progression.

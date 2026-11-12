@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.chrissorbadere.trombi",
+  "appName": "Trombi",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}
