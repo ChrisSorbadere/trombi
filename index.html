@@ -113,7 +113,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
 <input type="file" id="file" accept=".json,application/json" class="hidden">
 <script>
 'use strict';
-const VERSION='1.1.0';
+const VERSION='1.1.1';
 const ORDRE=['6A','6B','6C','5B','5C'];
 const LS_PROG='trombi.progress.v1', LS_SEL='trombi.sel.v1', LS_BEST='trombi.best.v1';
 const app=document.getElementById('app');
@@ -307,7 +307,7 @@ function ecranReglages(){
       el('button',{class:'btn block',onclick:()=>document.getElementById('file').click(),text:'📂 Remplacer le fichier d\'élèves'}),
       el('button',{class:'btn ghost block',onclick:()=>{if(confirmer('Remettre toute la progression à zéro ?')){PROG={};lsSet(LS_PROG,PROG);lsSet(LS_BEST,{});toast('Progression remise à zéro')}},text:'↺ Remettre la progression à zéro'}),
       el('button',{class:'btn ghost block',style:'color:var(--ko)',onclick:async()=>{if(confirmer('Effacer les élèves et les photos de cet appareil ?')){await DB.del('data');PROG={};lsSet(LS_PROG,PROG);lsSet(LS_BEST,{});DATA=null;ELEVES=[];ecranImport()}},text:'🗑️ Effacer les élèves de cet appareil'})),
-    el('footer',{text:'Trombi v'+VERSION+' · données stockées uniquement sur cet appareil · Icône : Twemoji (CC-BY 4.0)'}));
+    el('footer',{text:'Trombi v'+VERSION+' · données stockées uniquement sur cet appareil'}));
 }
 /* confirmation en deux appuis (pas de boîte de dialogue bloquante) */
 function confirmer(msg){
