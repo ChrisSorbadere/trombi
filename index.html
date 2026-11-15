@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="theme-color" content="#0f766e">
 <meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <style>
 :root{
   --bg:#f4f6f5;--card:#fff;--text:#16211f;--muted:#5b6965;--line:#dde3e1;
@@ -120,6 +121,14 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
 .fld input[type=text]{font:inherit;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);min-height:48px}
 .rad{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:8px 14px;min-height:48px;flex:1}
 .rad input{width:20px;height:20px;accent-color:var(--brand)}
+.nbo{font-size:.8rem;color:var(--muted);flex:none}
+details>summary{cursor:pointer;font-weight:700;min-height:32px;display:flex;align-items:center}
+textarea{font:inherit;width:100%;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);resize:vertical}
+.fld input[type=password]{font:inherit;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);min-height:48px}
+.entree{border-top:1px solid var(--line);padding-top:8px}
+.etxt{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.prot h3{font-size:1rem}.prot p{margin:0}.pul{margin:0;padding-left:1.2em}.pul li+li{margin-top:4px}
+.voile{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .15s ease-out;max-width:90vw}
 .toast.on{opacity:1}
 </style>
@@ -130,7 +139,10 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
 <input type="file" id="file" accept=".json,application/json" class="hidden">
 <script>
 'use strict';
-const VERSION='1.2.0';
+const VERSION='1.3.0';
+const NATIF=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+const plug=n=>window.Capacitor.registerPlugin(n);
+const PROTECTION_DATE='15/11/2026';
 const ORDRE=['6A','6B','6C','5B','5C'];
 const LS_PROG='trombi.progress.v1', LS_SEL='trombi.sel.v1', LS_BEST='trombi.best.v1';
 const app=document.getElementById('app');
@@ -247,7 +259,9 @@ function ecranImport(msg){
       el('p',{class:'muted',text:'Importe ton fichier d\'élèves (.json). Les photos restent uniquement sur cet appareil : rien n\'est envoyé en ligne.'}),
       msg?el('p',{style:'color:var(--ko);font-weight:600',text:msg}):null,
       el('div',{class:'drop'},
-        el('button',{class:'btn',onclick:()=>document.getElementById('file').click(),text:'📂 Choisir le fichier'}))),
+        el('button',{class:'btn',onclick:()=>document.getElementById('file').click(),text:'📂 Choisir le fichier'})),
+      NATIF?el('p',{class:'small muted',style:'margin:0',text:'Le même bouton permet de restaurer une sauvegarde chiffrée.'}):null,
+      el('button',{class:'btn ghost block',onclick:ecranProtection,text:'🛡️ Protection des données'})),
     el('footer',{text:'Trombi v'+VERSION}));
 }
 
@@ -327,8 +341,12 @@ function ecranReglages(){
   app.replaceChildren(topbar('Réglages',ecranAccueil),
     el('div',{class:'card stack'},
       el('p',{style:'margin:0',text:nb+' élèves chargés dans '+classes().length+' classes'+(sans?' ('+sans+' sans photo, exclus des jeux avec photo)':'')+'.'}),
-      el('button',{class:'btn block',onclick:()=>document.getElementById('file').click(),text:'📂 Remplacer le fichier d\'élèves'}),
+      el('button',{class:'btn block',onclick:()=>document.getElementById('file').click(),text:'📂 Remplacer le fichier d\'élèves (photos)'}),
+      NATIF?el('button',{class:'btn ghost block',onclick:ecranExport,text:'💾 Exporter une sauvegarde chiffrée'}):null,
+      NATIF?el('button',{class:'btn ghost block',onclick:()=>document.getElementById('file').click(),text:'📥 Restaurer une sauvegarde'}):null,
+      el('button',{class:'btn ghost block',onclick:ecranProtection,text:'🛡️ Protection des données'}),
       el('button',{class:'btn ghost block',onclick:()=>{if(confirmer('Remettre toute la progression à zéro ?')){PROG={};lsSet(LS_PROG,PROG);lsSet(LS_BEST,{});toast('Progression remise à zéro')}},text:'↺ Remettre la progression à zéro'}),
+      NATIF?el('button',{class:'btn ghost block',style:'color:var(--ko)',onclick:async()=>{if(confirmer('Effacer toutes les notes et observations ?')){ELEVES.forEach(e=>{e.notes=[];e.obs=[]});await sauver();toast('Notes et observations effacées')}},text:'🧹 Effacer toutes les notes et observations'}):null,
       el('button',{class:'btn ghost block',style:'color:var(--ko)',onclick:async()=>{if(confirmer('Effacer les élèves et les photos de cet appareil ?')){await DB.del('data');PROG={};lsSet(LS_PROG,PROG);lsSet(LS_BEST,{});DATA=null;ELEVES=[];ecranImport()}},text:'🗑️ Effacer les élèves de cet appareil'})),
     el('footer',{text:'Trombi v'+VERSION+' · données stockées uniquement sur cet appareil'}));
 }
@@ -349,10 +367,12 @@ function ecranListe(edit){
   const parPrenom=(a,b)=>cmp(pre(a),pre(b))||cmp(a.nom,b.nom), parNom=(a,b)=>cmp(a.nom,b.nom)||cmp(pre(a),pre(b));
   const ligne=(e,i)=>{
     const nomAff=LTRI==='nom'?[el('b',{text:e.nom}),' '+pre(e)]:[el('b',{text:pre(e)}),' '+e.nom];
-    return el('li',{},el('button',{class:'lrow',onclick:edit?()=>ecranFiche(e):null,disabled:!edit,'aria-label':edit?'Modifier '+nomComplet(e):null},
+    const nbo=NATIF?(e.notes?.length||0)+(e.obs?.length||0):0;
+    return el('li',{},el('button',{class:'lrow',onclick:()=>ecranFiche(e,edit),'aria-label':'Fiche de '+nomComplet(e)},
       el('span',{class:'lnum num',text:i+1}),
       e.photo?el('img',{src:e.photo,alt:''}):el('span',{class:'lph noimg',text:(pre(e)[0]||'?')+(e.nom[0]||'')}),
       el('span',{class:'lname'},...nomAff,e.usage?el('span',{class:'small muted',text:' ('+e.prenom+')'}):null),
+      nbo?el('span',{class:'nbo num',title:'Notes et observations',text:'📝'+nbo}):null,
       el('span',{class:'sx2 '+(e.g||''),text:e.g==='f'?'♀':e.g==='m'?'♂':'?'}),
       edit?el('span',{class:'muted',text:'✏️'}):null));
   };
@@ -365,33 +385,233 @@ function ecranListe(edit){
   const nf=l.filter(e=>e.g==='f').length, ng=l.filter(e=>e.g==='m').length;
   app.replaceChildren(topbar(edit?'Modifier un élève':'Listes de classe',ecranAccueil),
     el('div',{class:'stack'},tabs,seg,
-      el('p',{class:'small muted',style:'margin:0',text:l.length+' élèves · '+nf+' filles · '+ng+' garçons'+(edit?' · touche un élève pour le modifier':'')}),
+      el('p',{class:'small muted',style:'margin:0',text:l.length+' élèves · '+nf+' filles · '+ng+' garçons'+(edit?' · touche un élève pour le modifier':' · touche un élève pour sa fiche')}),
       el('div',{class:'card',style:'padding:6px 10px'},...corps)));
 }
-function ecranFiche(e){
+const MAXMOTS=200;
+const mots=t=>(t.trim().match(/\S+/g)||[]).length;
+const jour=()=>new Date().toISOString().slice(0,10);
+const fdate=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'';
+const uidN=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+function ecranFiche(e,depuisEdit){
+  const retour=()=>ecranListe(!!depuisEdit);
   const champ=(lab,val,ph)=>{const i=el('input',{type:'text',value:val||'',placeholder:ph||'',autocomplete:'off',spellcheck:'false'});return[i,el('label',{class:'fld'},el('span',{text:lab}),i)]};
   const [iu,lu]=champ('Prénom d\'usage (comment on l\'appelle)',e.usage,'Vide = '+e.prenom);
   const [ip,lp]=champ('Prénom(s) officiel(s)',e.prenom);
   const [in_,ln]=champ('Nom de famille',e.nom);
   const rad=(v,t)=>el('label',{class:'rad'},el('input',{type:'radio',name:'g',value:v,checked:e.g===v}),t);
   const err=el('p',{style:'color:var(--ko);font-weight:600;margin:0',role:'alert'});
-  const form=el('form',{class:'card stack',onsubmit:async ev=>{
+  const ident=el('form',{class:'stack',onsubmit:async ev=>{
     ev.preventDefault();
     const p=ip.value.trim().replace(/\s+/g,' '), n=in_.value.trim().replace(/\s+/g,' '), u=iu.value.trim().replace(/\s+/g,' ');
     if(!p||!n){err.textContent='Le prénom et le nom sont obligatoires.';return}
-    const g=form.querySelector('input[name=g]:checked')?.value||null;
+    const g=ident.querySelector('input[name=g]:checked')?.value||null;
     e.prenom=p.slice(0,60); e.nom=n.slice(0,80); e.usage=u&&norm(u)!==norm(p)?u.slice(0,60):undefined; e.g=g;
-    await sauver(); toast('Enregistré : '+nomComplet(e)); ecranListe(true);
-  }},
-    el('div',{style:'display:flex;gap:12px;align-items:center'},
-      e.photo?el('img',{src:e.photo,alt:'',style:'width:72px;border-radius:10px'}):null,
-      el('div',{},el('b',{text:nomComplet(e)}),el('div',{class:'tag',style:ccol(e.cls),text:e.cls}))),
-    lu,lp,ln,
+    await sauver(); toast('Enregistré : '+nomComplet(e)); ecranFiche(e,depuisEdit);
+  }},lu,lp,ln,
     el('fieldset',{class:'fld'},el('legend',{text:'Sexe'}),el('div',{style:'display:flex;gap:10px'},rad('f','Fille'),rad('m','Garçon'))),
-    err,
-    el('button',{class:'btn block',type:'submit',text:'Enregistrer'}),
-    el('button',{class:'btn ghost block',type:'button',onclick:()=>ecranListe(true),text:'Annuler'}));
-  app.replaceChildren(topbar('Fiche élève',()=>ecranListe(true)),form);
+    err,el('button',{class:'btn block',type:'submit',text:'Enregistrer l\'identité'}));
+  const identBloc=el('details',{class:'card',open:!!depuisEdit},el('summary',{text:'✏️ Identité et sexe'}),el('div',{style:'margin-top:12px'},ident));
+  const tete=el('div',{class:'card',style:'display:flex;gap:12px;align-items:center'},
+    e.photo?el('img',{src:e.photo,alt:'',style:'width:72px;border-radius:10px'}):el('span',{class:'lph noimg',style:'width:72px;height:92px',text:(pre(e)[0]||'?')+(e.nom[0]||'')}),
+    el('div',{},el('div',{style:'font-size:1.15rem;font-weight:800',text:pre(e)}),el('div',{text:e.nom}),
+      e.usage?el('div',{class:'small muted',text:'Prénom officiel : '+e.prenom}):null,
+      el('span',{class:'tag',style:ccol(e.cls),text:e.cls+(e.g?(e.g==='f'?' · fille':' · garçon'):'')})));
+  const blocs=[tete];
+  if(NATIF){ blocs.push(journal(e,'notes','📝 Notes'),journal(e,'obs','👁️ Observations')); }
+  else blocs.push(el('p',{class:'small muted card',text:'Les notes et observations ne sont disponibles que dans l\'appli Android (protégée par empreinte).'}));
+  blocs.push(identBloc);
+  app.replaceChildren(topbar('Fiche élève',retour),el('div',{class:'stack'},...blocs));
+}
+
+function journal(e,cle,titre){
+  const liste=()=>(e[cle]||[]).slice().sort((a,b)=>(b.d+b.id).localeCompare(a.d+a.id));
+  const zone=el('div',{class:'stack'});
+  const editeur=(texte,onOk,onAnnul,libOk)=>{
+    const ta=el('textarea',{rows:4,'aria-label':titre,placeholder:'Écris ici (200 mots maximum)…'});ta.value=texte||'';
+    const cpt=el('span',{class:'small muted num'});
+    const ok=el('button',{class:'btn',type:'button',text:libOk});
+    const maj=()=>{const n=mots(ta.value);cpt.textContent=n+' / '+MAXMOTS+' mots';cpt.style.color=n>MAXMOTS?'var(--ko)':'';ok.disabled=!n||n>MAXMOTS;ok.style.opacity=ok.disabled?.5:1};
+    ta.addEventListener('input',maj); maj();
+    ok.addEventListener('click',()=>{const t=ta.value.trim();if(!t||mots(t)>MAXMOTS)return;onOk(t)});
+    return el('div',{class:'stack'},ta,el('div',{style:'display:flex;gap:8px;align-items:center;justify-content:space-between'},cpt,
+      el('div',{style:'display:flex;gap:8px'},onAnnul?el('button',{class:'btn ghost',type:'button',onclick:onAnnul,text:'Annuler'}):null,ok)));
+  };
+  const rendre=()=>{
+    const items=liste();
+    const nouveau=editeur('',async t=>{(e[cle]=e[cle]||[]).push({id:uidN(),d:jour(),t});await sauver();toast('Ajouté le '+fdate(jour()));rendre()},null,'Ajouter');
+    zone.replaceChildren(el('h3',{class:'lhead',style:'margin:0',text:titre+' ('+items.length+')'}),nouveau,
+      ...items.map(it=>{
+        const box=el('div',{class:'entree'});
+        const vue=()=>box.replaceChildren(
+          el('div',{class:'small muted',text:fdate(it.d)+(it.m?' · modifiée le '+fdate(it.m):'')}),
+          el('p',{class:'etxt',text:it.t}),
+          el('div',{style:'display:flex;gap:6px;justify-content:flex-end'},
+            el('button',{class:'iconbtn','aria-label':'Modifier',onclick:()=>box.replaceChildren(editeur(it.t,async t=>{it.t=t;if(it.d!==jour())it.m=jour();await sauver();vue()},vue,'Enregistrer')),text:'✏️'}),
+            el('button',{class:'iconbtn','aria-label':'Supprimer',onclick:async()=>{if(!confirmer('Supprimer cette entrée ?'))return;e[cle]=e[cle].filter(x=>x!==it);await sauver();rendre()},text:'🗑️'})));
+        vue(); return box;}));
+  };
+  rendre();
+  return el('div',{class:'card'},zone);
+}
+
+/* ---------- protection des données ---------- */
+function ecranProtection(){
+  const sec=(t,...ps)=>el('section',{class:'stack'},el('h3',{text:t}),...ps.map(x=>typeof x==='string'?el('p',{text:x}):x));
+  const ul=(...li)=>el('ul',{class:'pul'},li.map(t=>el('li',{text:t})));
+  const nbN=ELEVES.reduce((n,e)=>n+(e.notes?.length||0),0), nbO=ELEVES.reduce((n,e)=>n+(e.obs?.length||0),0);
+  app.replaceChildren(topbar('Protection des données',()=>DATA?ecranReglages():ecranImport()),
+    el('article',{class:'card stack prot'},
+      el('p',{class:'small muted',text:'Trombi v'+VERSION+' · notice mise à jour le '+PROTECTION_DATE}),
+      el('p',{style:'font-weight:600',text:'Cette application traite des informations sur des élèves mineurs. Elle a été conçue pour les protéger : les données restent sur le téléphone de l\'enseignant, ne sont jamais transmises et sont protégées par le verrouillage du téléphone.'}),
+      sec('1. Finalité',
+        'Usage strictement pédagogique et personnel de l\'enseignant : apprendre les noms et prénoms de ses élèves, et garder des notes de suivi pédagogique sur la classe.',
+        'Aucun usage commercial, aucune publication, aucun partage avec des tiers.'),
+      sec('2. Données concernées',
+        ul('Identité scolaire : prénom, prénom d\'usage, nom, classe, fille/garçon.',
+           'Photo du trombinoscope de l\'établissement.',
+           'Notes et observations pédagogiques datées, rédigées par l\'enseignant (200 mots maximum chacune).'),
+        'Minimisation : seules les données utiles au suivi pédagogique sont saisies. Aucune donnée de santé, aucune donnée familiale sensible, aucune donnée sur les opinions, la religion ou l\'origine ne doit être enregistrée dans les notes et observations.'),
+      sec('3. Où sont stockées les données',
+        ul('Uniquement dans la mémoire interne de l\'application, sur le téléphone de l\'enseignant (espace privé de l\'appli, inaccessible aux autres applications).',
+           'Aucun serveur, aucun compte en ligne, aucun service tiers, aucune publicité, aucune statistique d\'utilisation.',
+           'L\'application n\'effectue aucun envoi réseau : une règle de sécurité intégrée (Content-Security-Policy) interdit toute connexion vers l\'extérieur.',
+           'La sauvegarde automatique Android vers le cloud est désactivée pour cette application.',
+           'Le code de l\'application ne contient aucune donnée d\'élève. Les élèves sont importés localement par l\'enseignant.')),
+      sec('4. Protection de l\'accès',
+        ul(NATIF?'À l\'ouverture, et après une absence de plus d\'une minute, l\'application exige l\'empreinte digitale de l\'enseignant (ou, à défaut, le code de verrouillage du téléphone).':'Version navigateur : les notes et observations y sont désactivées ; elles n\'existent que dans l\'application Android protégée par empreinte.',
+           'Le téléphone lui-même est protégé par un verrouillage et son stockage est chiffré par Android.')),
+      sec('5. Sauvegardes',
+        ul('Les sauvegardes sont créées uniquement à l\'initiative de l\'enseignant.',
+           'Elles ne contiennent pas les photos.',
+           'Elles sont chiffrées avec un mot de passe choisi par l\'enseignant (chiffrement AES-256-GCM, clé dérivée par PBKDF2-SHA-256, 310 000 itérations). Sans ce mot de passe, le fichier est illisible.',
+           'Le mot de passe n\'est enregistré nulle part.')),
+      sec('6. Durée de conservation',
+        'Les données sont conservées pour l\'année scolaire en cours. En fin d\'année, l\'enseignant efface les notes et observations (Réglages › Effacer toutes les notes et observations) ainsi que les élèves et les photos (Réglages › Effacer les élèves de cet appareil). Il supprime aussi les fichiers de sauvegarde.'),
+      sec('7. Droits des élèves et des familles',
+        'Les élèves et leurs représentants légaux peuvent demander à consulter, corriger ou faire effacer les informations les concernant, en s\'adressant à l\'enseignant ou à l\'établissement. L\'effacement est immédiat depuis la fiche de l\'élève.'),
+      sec('8. Engagements de l\'enseignant',
+        ul('N\'utiliser ces données que pour son travail pédagogique.',
+           'Ne jamais les communiquer à des tiers ni les publier.',
+           'Rédiger des notes factuelles, mesurées et professionnelles, que l\'élève ou sa famille pourraient lire.',
+           'Garder le téléphone verrouillé et ne pas confier l\'appli déverrouillée à un tiers.',
+           'Informer la direction de l\'établissement de cet outil et suivre ses consignes en matière de protection des données (RGPD).')),
+      sec('État actuel sur cet appareil',
+        (DATA?ELEVES.length:0)+' élèves · '+nbN+' notes · '+nbO+' observations.')),
+    el('footer',{text:'Trombi v'+VERSION}));
+}
+
+/* ---------- sauvegarde chiffrée ---------- */
+const ITER=310000;
+const b64=u=>btoa(String.fromCharCode(...new Uint8Array(u)));
+const unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+async function cle(mdp,sel,iter){
+  const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(mdp),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:sel,iterations:iter,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function chiffrer(obj,mdp){
+  const sel=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},await cle(mdp,sel,ITER),new TextEncoder().encode(JSON.stringify(obj)));
+  return{type:'trombi-sauvegarde',v:1,algo:'AES-256-GCM/PBKDF2-SHA256',iter:ITER,sel:b64(sel),iv:b64(iv),data:b64(ct)};
+}
+async function dechiffrer(f,mdp){
+  const iter=Math.min(Math.max(+f.iter||ITER,100000),2000000);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(f.iv)},await cle(mdp,unb64(f.sel),iter),unb64(f.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+function ecranExport(){
+  const m1=el('input',{type:'password',autocomplete:'new-password','aria-label':'Mot de passe'}), m2=el('input',{type:'password',autocomplete:'new-password','aria-label':'Confirmation'});
+  const err=el('p',{role:'alert',style:'color:var(--ko);font-weight:600;margin:0'});
+  const go=el('button',{class:'btn block',type:'submit',text:'🔒 Créer et partager la sauvegarde'});
+  app.replaceChildren(topbar('Sauvegarde chiffrée',ecranReglages),
+    el('form',{class:'card stack',onsubmit:async ev=>{
+      ev.preventDefault(); err.textContent='';
+      if(m1.value.length<8) return err.textContent='Mot de passe trop court (8 caractères minimum).';
+      if(m1.value!==m2.value) return err.textContent='Les deux mots de passe sont différents.';
+      go.disabled=true; go.textContent='Chiffrement…';
+      try{
+        const contenu={date:new Date().toISOString(),version:VERSION,annee:DATA.annee,eleves:ELEVES.map(e=>({uid:e.uid,cls:e.cls,prenom:e.prenom,nom:e.nom,usage:e.usage,g:e.g,notes:e.notes||[],obs:e.obs||[]}))};
+        const f=await chiffrer(contenu,m1.value); m1.value=m2.value='';
+        const nom='trombi-sauvegarde-'+jour()+'.json';
+        const FS=plug('Filesystem'), SH=plug('Share');
+        const w=await FS.writeFile({path:nom,data:JSON.stringify(f),directory:'CACHE',encoding:'utf8'});
+        await SH.share({title:'Sauvegarde Trombi',text:'Sauvegarde chiffrée Trombi du '+fdate(jour()),files:[w.uri],dialogTitle:'Enregistrer la sauvegarde'});
+        toast('Sauvegarde créée'); ecranReglages();
+      }catch(x){ if(!/cancel/i.test(String(x&&x.message)))err.textContent='Échec : '+(x&&x.message||x); go.disabled=false; go.textContent='🔒 Créer et partager la sauvegarde'; }
+    }},
+      el('p',{style:'margin:0',text:'Crée un fichier chiffré avec les élèves (sans photos), leurs notes et leurs observations. Enregistre-le ensuite où tu veux : Drive, mail, Fichiers…'}),
+      el('label',{class:'fld'},el('span',{text:'Mot de passe (8 caractères minimum)'}),m1),
+      el('label',{class:'fld'},el('span',{text:'Confirme le mot de passe'}),m2),
+      el('p',{class:'small',style:'margin:0;font-weight:600',text:'⚠️ Note ce mot de passe en lieu sûr : sans lui, la sauvegarde est définitivement illisible.'}),
+      err,go));
+  setTimeout(()=>m1.focus(),60);
+}
+function ecranRestaurer(f){
+  const m=el('input',{type:'password',autocomplete:'current-password','aria-label':'Mot de passe'});
+  const err=el('p',{role:'alert',style:'color:var(--ko);font-weight:600;margin:0'});
+  const go=el('button',{class:'btn block',type:'submit',text:'🔓 Restaurer'});
+  app.replaceChildren(topbar('Restaurer une sauvegarde',DATA?ecranReglages:ecranImport),
+    el('form',{class:'card stack',onsubmit:async ev=>{
+      ev.preventDefault(); err.textContent=''; go.disabled=true; go.textContent='Déchiffrement…';
+      let c; try{c=await dechiffrer(f,m.value)}catch{err.textContent='Mot de passe incorrect ou fichier abîmé.';go.disabled=false;go.textContent='🔓 Restaurer';return}
+      m.value='';
+      if(!c||!Array.isArray(c.eleves)){err.textContent='Contenu de sauvegarde invalide.';return}
+      const r=restaurer(c); await sauver(); charger(DATA); lsSet(LS_SEL,SEL);
+      toast(r.maj+' élèves mis à jour'+(r.ajout?', '+r.ajout+' ajoutés sans photo':'')); ecranAccueil();
+    }},
+      el('p',{style:'margin:0',text:'Les noms, notes et observations de la sauvegarde remplaceront ceux de cet appareil pour les mêmes élèves. Les photos actuelles sont conservées.'}),
+      el('label',{class:'fld'},el('span',{text:'Mot de passe de la sauvegarde'}),m),err,go));
+  setTimeout(()=>m.focus(),60);
+}
+const txtEntree=x=>x&&typeof x.t==='string'&&typeof x.d==='string'?{id:String(x.id||uidN()).slice(0,40),d:x.d.slice(0,10),m:typeof x.m==='string'?x.m.slice(0,10):undefined,t:x.t.slice(0,4000)}:null;
+function restaurer(c){
+  if(!DATA) DATA={annee:String(c.annee||''),classes:{}};
+  let maj=0,ajout=0;
+  for(const x of c.eleves){
+    if(!x||typeof x.prenom!=='string'||typeof x.nom!=='string'||typeof x.cls!=='string'||!/^[\w°\- ]{1,12}$/.test(x.cls)) continue;
+    const uid=typeof x.uid==='string'?x.uid:x.cls+'|'+x.nom+'|'+x.prenom;
+    let e=ELEVES.find(y=>y.uid===uid);
+    if(!e){e={uid,prenom:'',nom:'',photo:null};(DATA.classes[x.cls]=DATA.classes[x.cls]||[]).push(e);ajout++}else maj++;
+    e.prenom=x.prenom.slice(0,60); e.nom=x.nom.slice(0,80);
+    e.usage=typeof x.usage==='string'&&x.usage?x.usage.slice(0,60):undefined;
+    e.g=x.g==='f'||x.g==='m'?x.g:null;
+    e.notes=(Array.isArray(x.notes)?x.notes:[]).map(txtEntree).filter(Boolean);
+    e.obs=(Array.isArray(x.obs)?x.obs:[]).map(txtEntree).filter(Boolean);
+  }
+  return{maj,ajout};
+}
+
+/* ---------- verrouillage par empreinte (appli Android) ---------- */
+let verrouille=false, absentDepuis=0, authEnCours=false;
+const voile=el('div',{class:'voile hidden',role:'dialog','aria-modal':'true','aria-label':'Application verrouillée'});
+document.body.append(voile);
+async function verrouiller(){
+  verrouille=true; voile.classList.remove('hidden');
+  const msg=el('p',{class:'muted',text:'Les informations sur tes élèves sont protégées.'});
+  voile.replaceChildren(el('div',{class:'stack',style:'text-align:center;max-width:320px'},
+    el('div',{style:'font-size:3rem',text:'🔒'}),el('h2',{text:'Trombi est verrouillé'}),msg,
+    el('button',{class:'btn block',onclick:()=>authentifier(msg),text:'Déverrouiller avec mon empreinte'})));
+  await authentifier(msg);
+}
+async function authentifier(msg){
+  if(authEnCours) return; authEnCours=true;
+  try{
+    const V=plug('Verrou'); const dispo=await V.disponible();
+    if(!dispo.ok){ msg.textContent='Aucune empreinte ni code configuré sur ce téléphone : configure le verrouillage d\'écran dans les paramètres Android pour protéger tes données.'; deverrouiller(); return; }
+    const r=await V.authentifier();
+    if(r.ok) deverrouiller(); else msg.textContent='Déverrouillage annulé. Touche le bouton pour réessayer.';
+  }catch(x){ msg.textContent='Erreur de déverrouillage : '+(x&&x.message||x); }
+  finally{ setTimeout(()=>{authEnCours=false},400); }
+}
+function deverrouiller(){ verrouille=false; voile.classList.add('hidden'); }
+if(NATIF){
+  try{ plug('App').addListener('appStateChange',({isActive})=>{
+    if(authEnCours) return;
+    if(!isActive){ absentDepuis=Date.now(); voile.classList.remove('hidden'); if(!verrouille) voile.replaceChildren(el('div',{style:'font-size:3rem',text:'🔒'})); }
+    else if(verrouille||Date.now()-absentDepuis>60000) verrouiller();
+    else voile.classList.add('hidden');
+  }); }catch{}
 }
 
 /* ---------- jeux ---------- */
@@ -507,9 +727,22 @@ document.getElementById('file').addEventListener('change',async ev=>{
   const f=ev.target.files[0]; ev.target.value=''; if(!f) return;
   try{
     if(f.size>30e6) throw new Error('Fichier trop volumineux.');
-    const d=valider(JSON.parse(await f.text()));
-    await DB.set('data',d); charger(d); lsSet(LS_SEL,SEL);
-    toast(ELEVES.length+' élèves importés'); ecranAccueil();
+    const j=JSON.parse(await f.text());
+    if(j&&j.type==='trombi-sauvegarde'){ if(!NATIF) throw new Error('Les sauvegardes ne s\'ouvrent que dans l\'appli Android.'); return ecranRestaurer(j); }
+    const d=valider(j);
+    // reprise des notes, observations et corrections faites sur cet appareil
+    let repris=0, perdus=0;
+    if(DATA){
+      const anc=new Map(ELEVES.map(e=>[e.uid,e]));
+      for(const[c,arr] of Object.entries(d.classes)) for(const s of arr){
+        if(!s.uid) s.uid=c+'|'+s.nom+'|'+s.prenom;
+        const o=anc.get(s.uid); if(!o) continue; anc.delete(s.uid);
+        s.notes=o.notes; s.obs=o.obs; if(o.usage&&!s.usage) s.usage=o.usage; if(o.g) s.g=o.g; s.prenom=o.prenom; s.nom=o.nom; repris++;
+      }
+      for(const o of anc.values()) if((o.notes?.length||0)+(o.obs?.length||0)) perdus++;
+    }
+    await DB.set('data',d); DATA=null; charger(d); lsSet(LS_SEL,SEL);
+    toast(ELEVES.length+' élèves importés'+(repris?' · notes conservées':'')+(perdus?' · '+perdus+' élève(s) absents : notes perdues':'')); ecranAccueil();
   }catch(err){ DATA?toast(err.message||'Fichier illisible'):ecranImport(err instanceof SyntaxError?'Fichier illisible (JSON invalide).':err.message) }
 });
 
@@ -524,9 +757,10 @@ function migrer(){
   lsSet('trombi.mig.usage1',true); return ch;
 }
 (async()=>{
+  if(NATIF) verrouiller();
   try{const d=await DB.get('data'); if(d){charger(d);if(migrer())await sauver();ecranAccueil()} else ecranImport()}
   catch{ecranImport('Stockage indisponible sur ce navigateur (mode privé ?).')}
-  if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if(!NATIF&&'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
 </body>

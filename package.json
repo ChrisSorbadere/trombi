@@ -1,6 +1,6 @@
 {
   "name": "trombi",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Trombi — apprendre les noms de ses élèves",
   "scripts": {
@@ -8,7 +8,10 @@
   },
   "dependencies": {
     "@capacitor/android": "^7.4.0",
+    "@capacitor/app": "^7.1.2",
     "@capacitor/cli": "^7.4.0",
-    "@capacitor/core": "^7.4.0"
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/share": "^7.0.4"
   }
 }
