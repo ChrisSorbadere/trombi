@@ -139,9 +139,15 @@ textarea{font:inherit;width:100%;padding:10px 12px;border-radius:12px;border:2px
 <input type="file" id="file" accept=".json,application/json" class="hidden">
 <script>
 'use strict';
-const VERSION='1.3.0';
+const VERSION='1.3.1';
 const NATIF=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
-const plug=n=>window.Capacitor.registerPlugin(n);
+/* accès aux plugins natifs sans bundler : pont Capacitor (nativePromise / nativeCallback) */
+const plug=n=>{
+  const C=window.Capacitor;
+  return new Proxy({},{get:(_,m)=>m==='addListener'
+    ?(ev,cb)=>C.nativeCallback(n,'addListener',{eventName:ev},cb)
+    :(o={})=>C.nativePromise(n,m,o)});
+};
 const PROTECTION_DATE='15/11/2026';
 const ORDRE=['6A','6B','6C','5B','5C'];
 const LS_PROG='trombi.progress.v1', LS_SEL='trombi.sel.v1', LS_BEST='trombi.best.v1';
