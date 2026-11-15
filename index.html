@@ -103,6 +103,23 @@ button:focus-visible,input:focus-visible,label:focus-within{outline:3px solid va
 .mlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .drop{border:2px dashed var(--line);border-radius:var(--r);padding:22px 14px;text-align:center}
 footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
+.seg{display:flex;background:var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border-radius:9px;font-weight:600;font-size:.9rem;min-height:40px}
+.seg button[aria-pressed="true"]{background:var(--card);box-shadow:var(--shadow)}
+.llist{list-style:none;margin:0;padding:0}
+.llist li+li{border-top:1px solid var(--line)}
+.lrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:6px 2px;min-height:52px}
+.lrow[disabled]{cursor:default;opacity:1}.lrow[disabled]:active{transform:none}
+.lrow img,.lph{width:36px;height:46px;object-fit:cover;border-radius:6px;flex:none;font-size:.8rem}
+.lnum{width:2ch;text-align:right;color:var(--muted);font-size:.8rem;flex:none}
+.lname{flex:1;min-width:0}
+.sx2{font-weight:800;width:20px;text-align:center}.sx2.f{color:#db2777}.sx2.m{color:#2563eb}
+.lhead{font-size:.95rem;margin:10px 2px 4px}
+.fld{display:flex;flex-direction:column;gap:4px;border:0;padding:0;margin:0}
+.fld span,.fld legend{font-size:.85rem;color:var(--muted);font-weight:600;padding:0}
+.fld input[type=text]{font:inherit;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);min-height:48px}
+.rad{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:8px 14px;min-height:48px;flex:1}
+.rad input{width:20px;height:20px;accent-color:var(--brand)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .15s ease-out;max-width:90vw}
 .toast.on{opacity:1}
 </style>
@@ -113,7 +130,7 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:28px}
 <input type="file" id="file" accept=".json,application/json" class="hidden">
 <script>
 'use strict';
-const VERSION='1.1.1';
+const VERSION='1.2.0';
 const ORDRE=['6A','6B','6C','5B','5C'];
 const LS_PROG='trombi.progress.v1', LS_SEL='trombi.sel.v1', LS_BEST='trombi.best.v1';
 const app=document.getElementById('app');
@@ -137,7 +154,8 @@ const norm=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[
 function lev(a,b){const m=a.length,n=b.length;const d=Array.from({length:m+1},(_,i)=>[i]);for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
 function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2200)}
 const ccol=c=>`--cc:var(--c${c})`;
-const nomComplet=s=>s.prenom+' '+s.nom;
+const pre=s=>s.usage||s.prenom;
+const nomComplet=s=>pre(s)+' '+s.nom;
 function lsGet(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 
@@ -164,7 +182,9 @@ function valider(j){
       if(typeof s.prenom!=='string'||typeof s.nom!=='string') throw new Error('Élève invalide dans '+c);
       const photo=(typeof s.photo==='string'&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(s.photo))?s.photo:null;
       const g=(s.g==='f'||s.g==='m')?s.g:null;
-      return{prenom:s.prenom.slice(0,60),nom:s.nom.slice(0,80),photo,g};
+      const usage=typeof s.usage==='string'&&s.usage.trim()?s.usage.trim().slice(0,60):undefined;
+      const uid=typeof s.uid==='string'?s.uid.slice(0,200):undefined;
+      return{prenom:s.prenom.slice(0,60),nom:s.nom.slice(0,80),photo,g,usage,uid};
     });
   }
   return{annee:String(j.annee||'').slice(0,20),classes};
@@ -172,7 +192,7 @@ function valider(j){
 function charger(d){
   DATA=d;ELEVES=[];
   const cls=Object.keys(d.classes).sort((a,b)=>(ORDRE.indexOf(a)+99*(ORDRE.indexOf(a)<0))-(ORDRE.indexOf(b)+99*(ORDRE.indexOf(b)<0))||a.localeCompare(b));
-  for(const c of cls) for(const s of d.classes[c]) ELEVES.push({...s,cls:c,id:c+'|'+s.nom+'|'+s.prenom});
+  for(const c of cls) for(const s of d.classes[c]){ if(!s.uid) s.uid=c+'|'+s.nom+'|'+s.prenom; s.cls=c; s.id=s.uid; ELEVES.push(s); }
   if(!SEL||!SEL.length||SEL.some(c=>!d.classes[c])) SEL=cls.slice();
 }
 const classes=()=>DATA?[...new Set(ELEVES.map(e=>e.cls))]:[];
@@ -198,15 +218,16 @@ function tirer(list,n){
 }
 /* distracteurs : même sexe, de préférence même classe et prénoms proches */
 function leurres(cible,n,base){
-  const pc=norm(cible.prenom);
-  let c=base.filter(e=>e.id!==cible.id&&norm(e.prenom)!==pc);
+  const pc=norm(pre(cible));
+  let c=base.filter(e=>e.id!==cible.id&&norm(pre(e))!==pc);
   if(cible.g){const meme=c.filter(e=>e.g===cible.g); if(meme.length>=n) c=meme;}
-  const score=e=>(e.cls===cible.cls?3:0)+(norm(e.prenom)[0]===pc[0]?1.2:0)+(norm(e.prenom).length===pc.length?.4:0)+Math.random()*2.2;
+  const score=e=>(e.cls===cible.cls?3:0)+(norm(pre(e))[0]===pc[0]?1.2:0)+(norm(pre(e)).length===pc.length?.4:0)+Math.random()*2.2;
   return c.map(e=>[score(e),e]).sort((a,b)=>b[0]-a[0]).slice(0,n).map(x=>x[1]);
 }
 async function sauverSexe(e,g){
-  e.g=g;
-  const s=DATA.classes[e.cls].find(x=>x.nom===e.nom&&x.prenom===e.prenom); if(s) s.g=g;
+  e.g=g; await sauver();
+}
+async function sauver(){
   try{await DB.set('data',DATA)}catch{toast('Enregistrement impossible')}
 }
 
@@ -253,6 +274,8 @@ function ecranAccueil(){
       mode('🖼️','Trouve la photo','Nom → 4 photos',()=>lancer('photo')),
       mode('🏫','Quelle classe ?','Photo → classe',()=>lancer('classe')),
       mode('⏱️','Défi 60 secondes','Record : '+(best[SEL.slice().sort().join('+')]??0),()=>lancer('chrono'),true),
+      mode('📋','Listes de classe','Par prénom, nom ou fille/garçon',()=>ecranListe(false)),
+      mode('✏️','Modifier un élève','Prénom, nom, sexe',()=>ecranListe(true)),
       mode('📊','Progression','Qui je connais, qui je confonds',ecranProgres,true)),
     el('footer',{text:'Trombi v'+VERSION+(DATA.annee?' · '+DATA.annee:'')}));
 }
@@ -268,9 +291,9 @@ function ecranTrombi(){
       const c=el('button',{class:'tcell','aria-label':nomComplet(e),onclick:async()=>{
         if(corr){await sauverSexe(e,e.g==='f'?'m':'f');sx.textContent=signe(e);sx.className='sx '+e.g;return}
         if(masque)c.classList.toggle('show')}},
-        e.photo?el('img',{src:e.photo,alt:''}):el('div',{class:'noimg',text:(e.prenom[0]||'?')+(e.nom[0]||'')}),
+        e.photo?el('img',{src:e.photo,alt:''}):el('div',{class:'noimg',text:(pre(e)[0]||'?')+(e.nom[0]||'')}),
         sx,
-        el('div',{class:'lbl'},el('b',{text:e.prenom}),e.nom,' ',el('span',{class:'tag',style:ccol(e.cls),text:SEL.length>1?e.cls:''})));
+        el('div',{class:'lbl'},el('b',{text:pre(e)}),e.nom,' ',el('span',{class:'tag',style:ccol(e.cls),text:SEL.length>1?e.cls:''})));
       return c;}));
   };
   const bt=el('button',{class:'btn ghost',onclick:()=>{masque=!masque;wrap.classList.toggle('masked',masque);bt.textContent=masque?'👁️ Afficher les noms':'🙈 Cacher les noms';grille.querySelectorAll('.show').forEach(x=>x.classList.remove('show'))},text:'🙈 Cacher les noms'});
@@ -295,8 +318,8 @@ function ecranProgres(){
     faibles.length?el('button',{class:'btn block',onclick:()=>lancer('qcm',faibles.filter(e=>e.photo)),text:'Réviser ces élèves'}):null);
 }
 function cellule(e){
-  return el('div',{class:'tcell'},e.photo?el('img',{src:e.photo,alt:''}):el('div',{class:'noimg',text:e.prenom[0]+e.nom[0]}),
-    el('div',{class:'lbl'},el('b',{text:e.prenom}),e.nom,' ',el('span',{class:'tag',style:ccol(e.cls),text:e.cls})));
+  return el('div',{class:'tcell'},e.photo?el('img',{src:e.photo,alt:''}):el('div',{class:'noimg',text:(pre(e)[0]||'?')+(e.nom[0]||'')}),
+    el('div',{class:'lbl'},el('b',{text:pre(e)}),e.nom,' ',el('span',{class:'tag',style:ccol(e.cls),text:e.cls})));
 }
 
 function ecranReglages(){
@@ -313,6 +336,62 @@ function ecranReglages(){
 function confirmer(msg){
   if(confirmer.k===msg&&Date.now()-confirmer.t<4000){confirmer.k=null;return true}
   confirmer.k=msg;confirmer.t=Date.now();toast(msg+' Appuie encore pour confirmer.');return false;
+}
+
+let LCLS=null, LTRI=lsGet('trombi.tri.v1','prenom');
+const cmp=(a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'});
+function ecranListe(edit){
+  const cls=classes(); if(!LCLS||!cls.includes(LCLS)) LCLS=SEL.find(c=>cls.includes(c))||cls[0];
+  const tabs=el('div',{class:'chips',role:'tablist'},cls.map(c=>el('button',{class:'chip',role:'tab',style:ccol(c),'aria-pressed':String(c===LCLS),'aria-selected':String(c===LCLS),onclick:()=>{LCLS=c;ecranListe(edit)}},c)));
+  const tris=[['prenom','Prénom'],['nom','Nom'],['sexe','Filles / garçons']];
+  const seg=el('div',{class:'seg',role:'group','aria-label':'Ordre'},tris.map(([k,l])=>el('button',{'aria-pressed':String(k===LTRI),onclick:()=>{LTRI=k;lsSet('trombi.tri.v1',k);ecranListe(edit)}},l)));
+  const l=ELEVES.filter(e=>e.cls===LCLS);
+  const parPrenom=(a,b)=>cmp(pre(a),pre(b))||cmp(a.nom,b.nom), parNom=(a,b)=>cmp(a.nom,b.nom)||cmp(pre(a),pre(b));
+  const ligne=(e,i)=>{
+    const nomAff=LTRI==='nom'?[el('b',{text:e.nom}),' '+pre(e)]:[el('b',{text:pre(e)}),' '+e.nom];
+    return el('li',{},el('button',{class:'lrow',onclick:edit?()=>ecranFiche(e):null,disabled:!edit,'aria-label':edit?'Modifier '+nomComplet(e):null},
+      el('span',{class:'lnum num',text:i+1}),
+      e.photo?el('img',{src:e.photo,alt:''}):el('span',{class:'lph noimg',text:(pre(e)[0]||'?')+(e.nom[0]||'')}),
+      el('span',{class:'lname'},...nomAff,e.usage?el('span',{class:'small muted',text:' ('+e.prenom+')'}):null),
+      el('span',{class:'sx2 '+(e.g||''),text:e.g==='f'?'♀':e.g==='m'?'♂':'?'}),
+      edit?el('span',{class:'muted',text:'✏️'}):null));
+  };
+  let corps;
+  if(LTRI==='sexe'){
+    const grp=[['f','Filles'],['m','Garçons'],[null,'Non renseigné']];
+    corps=grp.map(([g,t])=>{const x=l.filter(e=>(e.g||null)===g).sort(parPrenom);if(!x.length)return null;
+      return el('div',{},el('h3',{class:'lhead',text:t+' ('+x.length+')'}),el('ol',{class:'llist'},x.map(ligne)))});
+  }else corps=[el('ol',{class:'llist'},l.slice().sort(LTRI==='nom'?parNom:parPrenom).map(ligne))];
+  const nf=l.filter(e=>e.g==='f').length, ng=l.filter(e=>e.g==='m').length;
+  app.replaceChildren(topbar(edit?'Modifier un élève':'Listes de classe',ecranAccueil),
+    el('div',{class:'stack'},tabs,seg,
+      el('p',{class:'small muted',style:'margin:0',text:l.length+' élèves · '+nf+' filles · '+ng+' garçons'+(edit?' · touche un élève pour le modifier':'')}),
+      el('div',{class:'card',style:'padding:6px 10px'},...corps)));
+}
+function ecranFiche(e){
+  const champ=(lab,val,ph)=>{const i=el('input',{type:'text',value:val||'',placeholder:ph||'',autocomplete:'off',spellcheck:'false'});return[i,el('label',{class:'fld'},el('span',{text:lab}),i)]};
+  const [iu,lu]=champ('Prénom d\'usage (comment on l\'appelle)',e.usage,'Vide = '+e.prenom);
+  const [ip,lp]=champ('Prénom(s) officiel(s)',e.prenom);
+  const [in_,ln]=champ('Nom de famille',e.nom);
+  const rad=(v,t)=>el('label',{class:'rad'},el('input',{type:'radio',name:'g',value:v,checked:e.g===v}),t);
+  const err=el('p',{style:'color:var(--ko);font-weight:600;margin:0',role:'alert'});
+  const form=el('form',{class:'card stack',onsubmit:async ev=>{
+    ev.preventDefault();
+    const p=ip.value.trim().replace(/\s+/g,' '), n=in_.value.trim().replace(/\s+/g,' '), u=iu.value.trim().replace(/\s+/g,' ');
+    if(!p||!n){err.textContent='Le prénom et le nom sont obligatoires.';return}
+    const g=form.querySelector('input[name=g]:checked')?.value||null;
+    e.prenom=p.slice(0,60); e.nom=n.slice(0,80); e.usage=u&&norm(u)!==norm(p)?u.slice(0,60):undefined; e.g=g;
+    await sauver(); toast('Enregistré : '+nomComplet(e)); ecranListe(true);
+  }},
+    el('div',{style:'display:flex;gap:12px;align-items:center'},
+      e.photo?el('img',{src:e.photo,alt:'',style:'width:72px;border-radius:10px'}):null,
+      el('div',{},el('b',{text:nomComplet(e)}),el('div',{class:'tag',style:ccol(e.cls),text:e.cls}))),
+    lu,lp,ln,
+    el('fieldset',{class:'fld'},el('legend',{text:'Sexe'}),el('div',{style:'display:flex;gap:10px'},rad('f','Fille'),rad('m','Garçon'))),
+    err,
+    el('button',{class:'btn block',type:'submit',text:'Enregistrer'}),
+    el('button',{class:'btn ghost block',type:'button',onclick:()=>ecranListe(true),text:'Annuler'}));
+  app.replaceChildren(topbar('Fiche élève',()=>ecranListe(true)),form);
 }
 
 /* ---------- jeux ---------- */
@@ -384,12 +463,12 @@ function question(){
     const inp=el('input',{type:'text',autocomplete:'off',autocapitalize:'words',spellcheck:'false','aria-label':'Prénom de l\'élève',placeholder:'Prénom…'});
     const verif=()=>{
       if(p.verrou)return; const v=norm(inp.value); if(!v) return;
-      const full=norm(e.prenom), first=full.split(' ')[0];
-      const exact=v===full||v===first;
-      const proche=!exact&&(lev(v,first)<=1&&first.length>3||lev(v,full)<=1&&full.length>3);
+      const full=norm(e.prenom), first=full.split(' ')[0], us=e.usage?norm(e.usage):'';
+      const exact=v===full||v===first||(us&&v===us);
+      const proche=!exact&&(lev(v,first)<=1&&first.length>3||lev(v,full)<=1&&full.length>3||us&&lev(v,us)<=1&&us.length>3);
       inp.disabled=true;
       if(exact) suite(true,'Bravo ! '+nomComplet(e));
-      else if(proche) suite(true,'Presque ! Ça s\'écrit '+e.prenom+' '+e.nom);
+      else if(proche) suite(true,'Presque ! Ça s\'écrit '+nomComplet(e));
       else suite(false,'C\'est '+nomComplet(e)+' ('+e.cls+')');
     };
     const form=el('form',{class:'typing',onsubmit:ev=>{ev.preventDefault();verif()}},inp,el('button',{class:'btn',type:'submit',text:'OK'}));
@@ -435,8 +514,17 @@ document.getElementById('file').addEventListener('change',async ev=>{
 });
 
 /* ---------- démarrage ---------- */
+function migrer(){
+  if(lsGet('trombi.mig.usage1',false)) return false;
+  let ch=false;
+  for(const e of ELEVES){
+    if(e.cls==='5C'&&e.prenom==='Leo Deniz'&&!e.usage){e.usage='Deniz';ch=true}
+    if(e.cls==='5C'&&e.prenom==='Oleksandr'&&!e.usage){e.usage='Sacha';ch=true}
+  }
+  lsSet('trombi.mig.usage1',true); return ch;
+}
 (async()=>{
-  try{const d=await DB.get('data'); if(d){charger(d);ecranAccueil()} else ecranImport()}
+  try{const d=await DB.get('data'); if(d){charger(d);if(migrer())await sauver();ecranAccueil()} else ecranImport()}
   catch{ecranImport('Stockage indisponible sur ce navigateur (mode privé ?).')}
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
